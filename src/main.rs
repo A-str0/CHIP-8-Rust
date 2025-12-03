@@ -1,3 +1,5 @@
+use std::fs;
+
 struct Chip8CPU {
     memory: [u8; 4096],     // chip RAM
     stack: [u16; 16],       // stack
@@ -38,8 +40,18 @@ impl Chip8CPU {
         };
         cpu.pc = 0x200;
         cpu.memory[0..80].copy_from_slice(&FONT);
+        cpu
+    }
 
-        return cpu;
+    fn load_rom(&mut self, path: &str) -> Result<(), String> {
+        let rom = fs::read(path).map_err(|e| format!("Failed to read ROM: {}", e))?;
+
+        if rom.len() > 4096 - 0x200 { // all avaliable space on chip
+            return Err(format!("ROM is too big! ({})", rom.len()));
+        }
+        self.memory[0x200..0x200 + rom.len()].copy_from_slice(&rom);
+
+        Ok(())
     }
 }
 
