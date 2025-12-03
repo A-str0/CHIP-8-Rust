@@ -32,6 +32,9 @@ const FONT: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 ];
 const WORD: u16 = 2;
+const DISPLAY_SIZE_X: usize = 64;
+const DISPLAY_SIZE_Y: usize = 32;
+
 
 impl Chip8CPU {
     fn new() -> Self {
@@ -208,6 +211,39 @@ impl Chip8CPU {
         self.v[0xF] = (vx >> 7) & 1;
         self.v[x] = vx << 1;
     }
+
+    fn rnd(&mut self, x: usize, kk: u8) {
+        // TODO
+    }
+
+    fn drw(&mut self, x: usize, y: usize, n: u8) {
+        let sprite_addr = self.pc as usize;
+        let pos_x = (self.v[x] as usize) % DISPLAY_SIZE_X;
+        let pos_y = (self.v[y] as usize) % DISPLAY_SIZE_Y;
+
+        self.v[0xF] = 0;
+
+        for row in 0..n as usize {
+            let sprite_byte = self.memory[sprite_addr + row];
+
+            for bit in 0..8 {
+                let pixel_x = (pos_x + bit) % DISPLAY_SIZE_X;
+                let pixel_y = (pos_y + row) % DISPLAY_SIZE_Y;
+
+                let idx = pixel_y * DISPLAY_SIZE_X + pixel_x;
+
+                let sprite_pixel = (sprite_byte >> (7 - bit)) & 1;
+                let screen_pixel = self.display[idx];
+                let new_pixel = screen_pixel ^ sprite_pixel;
+                if screen_pixel == 1 && new_pixel == 0 {
+                    self.v[0xF] = 1;
+                }
+
+                self.display[idx] = new_pixel;
+            }
+        }
+    }
+
 }
 
 fn main() {
