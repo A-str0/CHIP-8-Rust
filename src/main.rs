@@ -1,5 +1,4 @@
 use std::{fs, u8};
-use rand::random;
 
 struct Chip8CPU {
     memory: [u8; 4096],     // chip RAM
@@ -85,6 +84,7 @@ impl Chip8CPU {
         let x   = ((opcode & 0x0F00) >> 8) as usize;
         let y   = ((opcode & 0x00F0) >> 4) as usize;
         let kk: u8     = (opcode & 0x00FF) as u8;
+        let n      = (opcode & 0x000F) as u8;
 
         // oppcode is 16 bytes so it can be separeted into 4 nibbles (полубайт, если по-русски)
         // in our case nibble is type with four nibbles (4 bits)
@@ -95,25 +95,49 @@ impl Chip8CPU {
             (opcode & 0x000F) as u8,
         );
 
-        match nibbles {
-            (0x0, 0x0, 0xE, 0x0) => self.cls(),               // CLS | clear display
-            (0x0, 0x0, 0xE, 0xE) => self.ret(),               // RET | retuern to the oppcode of stack
-            (0x0, _, _, _)       => self.sys(nnn),      // SYS | jump to machine code routine
-            (0x1, _, _, _)       => self.jp(nnn),       // JP | jump to location
-            (0x2, _, _, _)       => self.call(nnn),     // CALL | call a subroutine
-            (0x3, _, _, _)       => self.se_kk(x, kk),        // SE | skip next instruction if V[x] == kk
-            (0x4, _, _, _)       => self.sne_kk(x, kk),          // SNE | skip next instruction if V[x] != kk
-            (0x5, _, _, 0x0)     => self.se_y(x, y),          // SE | skip next instruction if V[x] == V[y]
-            (0x6, _, _, _)       => self.ld_ll(x, kk),           // LD | set V[x] = kk
-            _ => {
-                return Err(format!("oppcode is not recognized! ({})", opcode));
-            }
+        match  nibbles {
+            (0x0, 0x0, 0xE, 0x0) => self.cls(),
+            (0x0, 0x0, 0xE, 0xE) => self.ret(),
+            (0x0, _,    _,    _) => self.sys(nnn),
+            (0x1, _, _, _)       => self.jp(nnn),
+            (0x2, _, _, _)       => self.call(nnn),
+            (0x3, _, _, _)       => self.se_kk(x, kk),
+            (0x4, _, _, _)       => self.sne_kk(x, kk),
+            (0x5, _, _, 0x0)     => self.se_y(x, y),
+            (0x6, _, _, _)       => self.ld_ll(x, kk),
+            (0x7, _, _, _)       => self.add_kk(x, kk),
+            (0x8, _, _, 0x0)     => self.ld_y(x, y),
+            (0x8, _, _, 0x1)     => self.or(x, y),
+            (0x8, _, _, 0x2)     => self.and(x, y),
+            (0x8, _, _, 0x3)     => self.xor(x, y),
+            (0x8, _, _, 0x4)     => self.add_y(x, y),
+            (0x8, _, _, 0x5)     => self.sub(x, y),
+            (0x8, _, _, 0x6)     => self.shr(x, y),
+            (0x8, _, _, 0x7)     => self.subn(x, y),
+            (0x8, _, _, 0xE)     => self.shl(x, y),
+            (0x9, _, _, 0x0)     => self.sne_y(x, y),
+            (0xA, _, _, _)       => self.ld_i(nnn),
+            (0xB, _, _, _)       => self.jp_v0(nnn),
+            (0xC, _, _, _)       => self.rnd(x, kk),
+            (0xD, _, _, _)       => self.drw(x, y, n),
+            (0xE, _, 0x9, 0xE)   => self.skp(x),
+            (0xE, _, 0xA, 0x1)   => self.sknp(x),
+            (0xF, _, 0x0, 0x7)   => self.ld_dt(x),
+            (0xF, _, 0x0, 0xA)   => self.ld_x(x),
+            (0xF, _, 0x1, 0x5)   => self.ld_dt(x),
+            (0xF, _, 0x1, 0x8)   => self.ld_st(x),
+            (0xF, _, 0x1, 0xE)   => self.add_i(x),
+            (0xF, _, 0x2, 0x9)   => self.ld_f(x),
+            (0xF, _, 0x3, 0x3)   => self.ld_b(x),
+            (0xF, _, 0x5, 0x5)   => self.ld_is(x),
+            (0xF, _, 0x6, 0x5)   => self.ld_vx(x),
+            _ => return Err(format!("Unknown opcode: {:04X}", opcode)),
         }
 
         return Ok(());
     }
 
-    fn sys(&mut self, addr: u16) {
+    fn sys(&mut self, _addr: u16) {
         println!("OUTDATED!!! not in use anymore :)");
     }
 
@@ -177,6 +201,16 @@ impl Chip8CPU {
     fn ld_st(&mut self, x: usize) {
         self.v[x] = self.sound_timer;
     }
+    fn ld_x(&mut self, x: usize) {
+        for key in 0..16 {
+            if self.keys[key] {
+                self.v[x] = key as u8;
+                return;
+            }
+        }
+
+        self.pc -= WORD;
+    }
     fn ld_f(&mut self, x: usize) {
         self.i = (self.v[x] as u16) * 5;
     }
@@ -233,13 +267,13 @@ impl Chip8CPU {
         self.v[x] ^= self.v[y];
     }
 
-    fn shr(&mut self, x: usize, y: usize) {
+    fn shr(&mut self, x: usize, _y: usize) {
         let vx = self.v[x];
         self.v[0xF] = vx & 1;
         self.v[x] = vx >> 1;
     }
 
-    fn shl(&mut self, x: usize, y: usize) {
+    fn shl(&mut self, x: usize, _y: usize) {
         let vx = self.v[x];
         self.v[0xF] = (vx >> 7) & 1;
         self.v[x] = vx << 1;
@@ -292,6 +326,8 @@ impl Chip8CPU {
 
 fn main() {
     let mut cpu = Chip8CPU::new();
+
+    cpu.load_rom("test.ch8").expect("No file.ch8 :(");
 
     let quit: bool = false;
     while quit {
