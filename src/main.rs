@@ -1,4 +1,5 @@
 use std::{fs, u8};
+use rand::random;
 
 struct Chip8CPU {
     memory: [u8; 4096],     // chip RAM
@@ -11,6 +12,8 @@ struct Chip8CPU {
 
     delay_timer: u8,
     sound_timer: u8,
+
+    keys: [bool; 16],       // all keys
 }
 
 const FONT: [u8; 80] = [
@@ -46,6 +49,7 @@ impl Chip8CPU {
             i: 0, pc: 0, sp: 0,
             delay_timer: 0,
             sound_timer: 0,
+            keys: [false; 16],
         };
         cpu.pc = 0x200;
         cpu.memory[0..80].copy_from_slice(&FONT);
@@ -167,6 +171,32 @@ impl Chip8CPU {
     fn ld_i(&mut self, addr: u16) {
         self.i = addr;
     }
+    fn ld_dt(&mut self, x: usize) {
+        self.v[x] = self.delay_timer;
+    }
+    fn ld_st(&mut self, x: usize) {
+        self.v[x] = self.sound_timer;
+    }
+    fn ld_f(&mut self, x: usize) {
+        self.i = (self.v[x] as u16) * 5;
+    }
+    fn ld_b(&mut self, x: usize) {
+        let v = self.v[x];
+        self.memory[self.i as usize] = v / 100;
+        self.memory[self.i as usize + 1] = (v / 10) % 10;
+        self.memory[self.i as usize + 2] = v % 10;
+    }
+    fn ld_is(&mut self, x: usize) {
+        for n in 0..=x {
+            self.memory[self.i as usize + n] = self.v[n];
+        }
+    }
+    fn ld_vx(&mut self, x: usize) {
+        for n in 0..=x {
+            self.v[n] = self.memory[self.i as usize + n];
+        }
+    }
+
 
     fn add_kk(&mut self, x: usize, kk: u8) {
         let (res, overflow) = self.v[x].overflowing_add(kk);
@@ -175,6 +205,9 @@ impl Chip8CPU {
     }
     fn add_y(&mut self, x: usize, y: usize) {
         self.add_kk(x, self.v[y]);
+    }
+    fn add_i(&mut self, x: usize) {
+        self.i += self.v[x] as u16;
     }
 
     fn sub(&mut self, x: usize, y: usize) {
@@ -213,7 +246,7 @@ impl Chip8CPU {
     }
 
     fn rnd(&mut self, x: usize, kk: u8) {
-        // TODO
+        self.v[x] = rand::random::<u8>() & kk;
     }
 
     fn drw(&mut self, x: usize, y: usize, n: u8) {
@@ -244,6 +277,17 @@ impl Chip8CPU {
         }
     }
 
+    fn skp(&mut self, x: usize) {
+        if self.keys[self.v[x] as usize] == true {
+            self.pc += WORD * 2;
+        }
+    }
+
+    fn sknp(&mut self, x: usize) {
+        if self.keys[self.v[x] as usize] == false {
+            self.pc += WORD * 2;
+        }
+    }
 }
 
 fn main() {
