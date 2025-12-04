@@ -1,21 +1,6 @@
 use std::{fs, u8};
 
-struct Chip8CPU {
-    memory: [u8; 4096],     // chip RAM
-    stack: [u16; 16],       // stack
-    display: [u8; 256],     // display
-    v: [u8; 16],            // v registries
-    i: u16,                 // i registry
-    pc: u16,                // program counter
-    sp: u8,                 // stack pointer
-
-    delay_timer: u8,
-    sound_timer: u8,
-
-    keys: [bool; 16],       // all keys
-}
-
-const FONT: [u8; 80] = [
+const FONTS: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
     0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -33,17 +18,30 @@ const FONT: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 ];
-const WORD: u16 = 2;
 const DISPLAY_SIZE_X: usize = 64;
 const DISPLAY_SIZE_Y: usize = 32;
+const WORD: u16 = 2;
+struct Chip8CPU {
+    memory: [u8; 4096],     // chip RAM
+    stack: [u16; 16],       // stack
+    display: [u8; DISPLAY_SIZE_X * DISPLAY_SIZE_Y],     // display
+    v: [u8; 16],            // v registries
+    i: u16,                 // i registry
+    pc: u16,                // program counter
+    sp: u8,                 // stack pointer
 
+    delay_timer: u8,
+    sound_timer: u8,
+
+    keys: [bool; 16],       // all keys
+}
 
 impl Chip8CPU {
     fn new() -> Self {
         let mut cpu: Chip8CPU = Chip8CPU { 
             memory: [0; 4096], 
             stack: [0; 16],
-            display: [0; 256],
+            display: [0; DISPLAY_SIZE_X * DISPLAY_SIZE_Y],
             v: [0; 16], 
             i: 0, pc: 0, sp: 0,
             delay_timer: 0,
@@ -51,7 +49,7 @@ impl Chip8CPU {
             keys: [false; 16],
         };
         cpu.pc = 0x200;
-        cpu.memory[0..80].copy_from_slice(&FONT);
+        cpu.memory[0..80].copy_from_slice(&FONTS);
         cpu
     }
 
@@ -67,9 +65,19 @@ impl Chip8CPU {
     }
 
     fn cycle(&mut self) {
+        // TODO: fresh rate handloig (60 Hz)
+
         let oppcode = self.fetch_oppcode();
 
         self.execute(oppcode).expect("error lol");
+
+        if self.delay_timer > 0 {
+            self.delay_timer -= 1;
+        } 
+        if self.sound_timer > 0 {
+            self.sound_timer -= 1;
+        } 
+
     }
 
     fn fetch_oppcode(&mut self) -> u16 {
@@ -137,8 +145,8 @@ impl Chip8CPU {
         return Ok(());
     }
 
-    fn sys(&mut self, _addr: u16) {
-        println!("OUTDATED!!! not in use anymore :)");
+    fn sys(&mut self, _addr: u16) { 
+        // Do nothing
     }
 
     fn cls(&mut self) {
@@ -233,26 +241,24 @@ impl Chip8CPU {
 
 
     fn add_kk(&mut self, x: usize, kk: u8) {
-        let (res, overflow) = self.v[x].overflowing_add(kk);
-        self.v[0xF] = (overflow) as u8;
-        self.v[x] = res;
+        self.v[x] += kk;
     }
     fn add_y(&mut self, x: usize, y: usize) {
-        self.add_kk(x, self.v[y]);
+        let (res, overflow) = self.v[x].overflowing_add(self.v[y]);
+        self.v[0xF] = (overflow) as u8;
+        self.v[x] = res;
     }
     fn add_i(&mut self, x: usize) {
         self.i += self.v[x] as u16;
     }
 
     fn sub(&mut self, x: usize, y: usize) {
-        let (res, overflow) = self.v[x].overflowing_sub(self.v[y]);
-        self.v[x] = res;
-        self.v[0xF]= overflow as u8;
+        self.v[0xF] = (self.v[x] > self.v[y]) as u8;
+        self.v[x] -=  self.v[y];
     }
     fn subn(&mut self, x: usize, y: usize) {
-        let (res, overflow) = self.v[y].overflowing_sub(self.v[x]);
-        self.v[x] = res;
-        self.v[0xF]= overflow as u8;
+        self.v[0xF] = (self.v[y] > self.v[x]) as u8;
+        self.v[x] =  self.v[y] - self.v[x];
     }
 
     fn or(&mut self, x: usize, y: usize) {
@@ -284,7 +290,7 @@ impl Chip8CPU {
     }
 
     fn drw(&mut self, x: usize, y: usize, n: u8) {
-        let sprite_addr = self.pc as usize;
+        let sprite_addr = self.i as usize;
         let pos_x = (self.v[x] as usize) % DISPLAY_SIZE_X;
         let pos_y = (self.v[y] as usize) % DISPLAY_SIZE_Y;
 
@@ -330,7 +336,7 @@ fn main() {
     cpu.load_rom("test.ch8").expect("No file.ch8 :(");
 
     let quit: bool = false;
-    while quit {
+    while !quit {
         cpu.cycle();
     }
 }
