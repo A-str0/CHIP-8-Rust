@@ -1,4 +1,4 @@
-use std::{fs, u8};
+use std::fs;
 
 const FONTS: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -18,13 +18,13 @@ const FONTS: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 ];
-const DISPLAY_SIZE_X: usize = 64;
-const DISPLAY_SIZE_Y: usize = 32;
+pub const DISPLAY_SIZE_Y: usize = 64;
+pub const DISPLAY_SIZE_X: usize = 32;
 const WORD: u16 = 2;
 pub struct Chip8CPU {
     memory: [u8; 4096],     // chip RAM
     stack: [u16; 16],       // stack
-    display: [u8; DISPLAY_SIZE_X * DISPLAY_SIZE_Y],     // display
+    display: [u8; DISPLAY_SIZE_Y * DISPLAY_SIZE_Y / 8],     // display
     v: [u8; 16],            // v registries
     i: u16,                 // i registry
     pc: u16,                // program counter
@@ -32,7 +32,6 @@ pub struct Chip8CPU {
 
     delay_timer: u8,
     sound_timer: u8,
-
     keys: [bool; 16],       // all keys
 }
 
@@ -41,7 +40,7 @@ impl Chip8CPU {
         let mut cpu: Chip8CPU = Chip8CPU { 
             memory: [0; 4096], 
             stack: [0; 16],
-            display: [0; DISPLAY_SIZE_X * DISPLAY_SIZE_Y],
+            display: [0; DISPLAY_SIZE_Y * DISPLAY_SIZE_Y / 8],
             v: [0; 16], 
             i: 0, pc: 0, sp: 0,
             delay_timer: 0,
@@ -79,6 +78,8 @@ impl Chip8CPU {
     }
 
     fn fetch_oppcode(&mut self) -> u16 {
+        if self.pc >= 4096 { return 0; }
+
         let high = self.memory[self.pc as usize] as u16;
         let low  = self.memory[(self.pc + 1) as usize] as u16;
         self.pc += WORD;
@@ -289,7 +290,7 @@ impl Chip8CPU {
 
     fn drw(&mut self, x: usize, y: usize, n: u8) {
         let sprite_addr = self.i as usize;
-        let pos_x = (self.v[x] as usize) % DISPLAY_SIZE_X;
+        let pos_x = (self.v[x] as usize) % DISPLAY_SIZE_Y;
         let pos_y = (self.v[y] as usize) % DISPLAY_SIZE_Y;
 
         self.v[0xF] = 0;
@@ -298,10 +299,10 @@ impl Chip8CPU {
             let sprite_byte = self.memory[sprite_addr + row];
 
             for bit in 0..8 {
-                let pixel_x = (pos_x + bit) % DISPLAY_SIZE_X;
+                let pixel_x = (pos_x + bit) % DISPLAY_SIZE_Y;
                 let pixel_y = (pos_y + row) % DISPLAY_SIZE_Y;
 
-                let idx = pixel_y * DISPLAY_SIZE_X + pixel_x;
+                let idx = pixel_y * DISPLAY_SIZE_Y + pixel_x;
 
                 let sprite_pixel = (sprite_byte >> (7 - bit)) & 1;
                 let screen_pixel = self.display[idx];
