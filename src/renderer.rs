@@ -1,6 +1,6 @@
-use sdl2::{render::Canvas, video::Window};
+use sdl2::{pixels::Color, rect::Rect, render::Canvas, video::Window};
 
-use crate::cpu::{Chip8CPU, DISPLAY_SIZE_X, DISPLAY_SIZE_Y};
+use crate::cpu::{Chip8CPU, DISPLAY_SCALE, DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
 pub struct Renderer {
     canvas: Canvas<Window>,
@@ -13,14 +13,14 @@ impl Renderer {
         let window = video_subsystem
             .window("rust-sdl2 example", 800, 600)
             .opengl()
-            .resizable()
             .build()
             .map_err(|e| e.to_string())?;
 
         let mut canvas = window.into_canvas()
+            .present_vsync()
             .build()
             .map_err(|e| e.to_string())?;
-        canvas.set_logical_size(DISPLAY_SIZE_X as u32, DISPLAY_SIZE_Y as u32)
+        canvas.set_logical_size(DISPLAY_HEIGHT as u32, DISPLAY_WIDTH as u32)
             .map_err(|e| e.to_string())?;
 
         let s =  Self { 
@@ -30,7 +30,31 @@ impl Renderer {
         Ok(s)
     }
 
-    pub fn cycle(&mut self, _cpu: &mut Chip8CPU) {
-        println!("asdasdas");
+    pub fn draw(&mut self, cpu: &mut Chip8CPU) -> Result<(), String> {
+        self.canvas.set_draw_color(Color::RGB(0, 0, 0));
+        self.canvas.clear();
+
+        self.canvas.set_draw_color(Color::RGB(0, 255, 0));
+
+        for (i, &byte) in cpu.get_display().iter().enumerate() {
+            let y = i / 8;
+            let x_base = (i % 8) * 8;
+
+            for bit in 0..8 {
+                if (byte & (1 << (7 - bit))) != 0 {
+                    let x = x_base + bit;
+                    let rect = Rect::new(
+                        (x as i32) * DISPLAY_SCALE as i32,
+                        (y as i32) * DISPLAY_SCALE as i32,
+                        DISPLAY_SCALE as u32,
+                        DISPLAY_SCALE as u32,
+                    );
+                    self.canvas.fill_rect(rect)?;
+                }
+            }
+        }
+
+        self.canvas.present();
+        Ok(())
     }
 }

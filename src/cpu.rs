@@ -18,13 +18,14 @@ const FONTS: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 ];
-pub const DISPLAY_SIZE_Y: usize = 64;
-pub const DISPLAY_SIZE_X: usize = 32;
+pub const DISPLAY_WIDTH: usize = 64;
+pub const DISPLAY_HEIGHT: usize = 32;
+pub const DISPLAY_SCALE: usize  = 4;
 const WORD: u16 = 2;
 pub struct Chip8CPU {
     memory: [u8; 4096],     // chip RAM
     stack: [u16; 16],       // stack
-    display: [u8; DISPLAY_SIZE_Y * DISPLAY_SIZE_Y / 8],     // display
+    display: [u8; DISPLAY_HEIGHT * DISPLAY_WIDTH / 8],     // display
     v: [u8; 16],            // v registries
     i: u16,                 // i registry
     pc: u16,                // program counter
@@ -36,11 +37,13 @@ pub struct Chip8CPU {
 }
 
 impl Chip8CPU {
+    pub fn get_display(&self) -> &[u8; DISPLAY_HEIGHT * DISPLAY_WIDTH / 8] { &self.display }
+
     pub fn new() -> Self {
         let mut cpu: Chip8CPU = Chip8CPU { 
             memory: [0; 4096], 
             stack: [0; 16],
-            display: [0; DISPLAY_SIZE_Y * DISPLAY_SIZE_Y / 8],
+            display: [0; DISPLAY_HEIGHT * DISPLAY_WIDTH / 8],
             v: [0; 16], 
             i: 0, pc: 0, sp: 0,
             delay_timer: 0,
@@ -288,30 +291,37 @@ impl Chip8CPU {
         self.v[x] = rand::random::<u8>() & kk;
     }
 
-    fn drw(&mut self, x: usize, y: usize, n: u8) {
-        let sprite_addr = self.i as usize;
-        let pos_x = (self.v[x] as usize) % DISPLAY_SIZE_Y;
-        let pos_y = (self.v[y] as usize) % DISPLAY_SIZE_Y;
-
+    fn drw(&mut self, vx: usize, vy: usize, n: u8) {
         self.v[0xF] = 0;
 
+        let x = (self.v[vx] as usize) % 64;
+        let y = (self.v[vy] as usize) % 32;
+
         for row in 0..n as usize {
-            let sprite_byte = self.memory[sprite_addr + row];
+            if y + row >= 32 { break; }
+            let sprite = self.memory[self.i as usize + row];
 
-            for bit in 0..8 {
-                let pixel_x = (pos_x + bit) % DISPLAY_SIZE_Y;
-                let pixel_y = (pos_y + row) % DISPLAY_SIZE_Y;
+            for col in 0..8 {
+                if x + col >= 64 { break; }
 
-                let idx = pixel_y * DISPLAY_SIZE_Y + pixel_x;
+                let pixel_x = x + col;
+                let pixel_y = y + row;
+                let byte_idx = pixel_y * 8 + (pixel_x / 8);
+                let bit_idx = 7 - (pixel_x % 8);
 
-                let sprite_pixel = (sprite_byte >> (7 - bit)) & 1;
-                let screen_pixel = self.display[idx];
-                let new_pixel = screen_pixel ^ sprite_pixel;
-                if screen_pixel == 1 && new_pixel == 0 {
+                let sprite_bit = (sprite >> (7 - col)) & 1;
+                let screen_bit = (self.display[byte_idx] >> bit_idx) & 1;
+
+                if screen_bit == 1 && sprite_bit == 1 {
                     self.v[0xF] = 1;
                 }
 
-                self.display[idx] = new_pixel;
+                let result = screen_bit ^ sprite_bit;
+                if result == 1 {
+                    self.display[byte_idx] |= 1 << bit_idx;
+                } else {
+                    self.display[byte_idx] &= !(1 << bit_idx);
+                }
             }
         }
     }
