@@ -256,11 +256,11 @@ impl Chip8CPU {
 
     fn sub(&mut self, x: usize, y: usize) {
         self.v[0xF] = (self.v[x] > self.v[y]) as u8;
-        self.v[x] -=  self.v[y];
+        self.v[x] = self.v[x].wrapping_sub(self.v[y]);
     }
     fn subn(&mut self, x: usize, y: usize) {
         self.v[0xF] = (self.v[y] > self.v[x]) as u8;
-        self.v[x] =  self.v[y] - self.v[x];
+        self.v[x] = self.v[y].wrapping_sub(self.v[x]);
     }
 
     fn or(&mut self, x: usize, y: usize) {
