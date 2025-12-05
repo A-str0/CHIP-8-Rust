@@ -169,7 +169,7 @@ impl Chip8CPU {
     fn ret(&mut self) {
         self.sp -= 1;
         self.pc = self.stack[self.sp as usize];
-        self.pc += WORD;
+        // self.pc += WORD;
     }
 
     fn jp(&mut self, addr: u16) {
@@ -252,9 +252,8 @@ impl Chip8CPU {
         }
     }
 
-
     fn add_kk(&mut self, x: usize, kk: u8) {
-        self.v[x] += kk;
+        self.v[x] = self.v[x].wrapping_add(kk);
     }
     fn add_y(&mut self, x: usize, y: usize) {
         let (res, overflow) = self.v[x].overflowing_add(self.v[y]);
@@ -262,15 +261,15 @@ impl Chip8CPU {
         self.v[x] = res;
     }
     fn add_i(&mut self, x: usize) {
-        self.i += self.v[x] as u16;
+        self.i = self.i.wrapping_add(self.v[x] as u16);
     }
 
     fn sub(&mut self, x: usize, y: usize) {
-        self.v[0xF] = (self.v[x] > self.v[y]) as u8;
+        self.v[0xF] = if self.v[x] > self.v[y] { 1 } else { 0 };
         self.v[x] = self.v[x].wrapping_sub(self.v[y]);
     }
     fn subn(&mut self, x: usize, y: usize) {
-        self.v[0xF] = (self.v[y] > self.v[x]) as u8;
+        self.v[0xF] = if self.v[y] > self.v[x] { 1 } else { 0 };
         self.v[x] = self.v[y].wrapping_sub(self.v[x]);
     }
 
@@ -305,30 +304,33 @@ impl Chip8CPU {
     fn drw(&mut self, vx: usize, vy: usize, n: u8) {
         self.v[0xF] = 0;
 
-        let x = (self.v[vx] as usize) % 64;
-        let y = (self.v[vy] as usize) % 32;
+        let start_x = (self.v[vx] as usize) % 64;
+        let start_y = (self.v[vy] as usize) % 32;
 
         for row in 0..n as usize {
-            if y + row >= 32 { break; }
-            let sprite = self.memory[self.i as usize + row];
+            if start_y + row >= 32 { break; }
+
+            let sprite_byte = self.memory[self.i as usize + row];
 
             for col in 0..8 {
-                if x + col >= 64 { break; }
+                if start_x + col >= 64 { break; }
 
-                let pixel_x = x + col;
-                let pixel_y = y + row;
+                let pixel_x = start_x + col;
+                let pixel_y = start_y + row;
+
                 let byte_idx = pixel_y * 8 + (pixel_x / 8);
                 let bit_idx = 7 - (pixel_x % 8);
 
-                let sprite_bit = (sprite >> (7 - col)) & 1;
+                let sprite_bit = (sprite_byte >> (7 - col)) & 1;
                 let screen_bit = (self.display[byte_idx] >> bit_idx) & 1;
 
                 if screen_bit == 1 && sprite_bit == 1 {
                     self.v[0xF] = 1;
                 }
 
-                let result = screen_bit ^ sprite_bit;
-                if result == 1 {
+                let new_bit = screen_bit ^ sprite_bit;
+
+                if new_bit == 1 {
                     self.display[byte_idx] |= 1 << bit_idx;
                 } else {
                     self.display[byte_idx] &= !(1 << bit_idx);
@@ -339,13 +341,13 @@ impl Chip8CPU {
 
     fn skp(&mut self, x: usize) {
         if self.keys[self.v[x] as usize] == true {
-            self.pc += WORD * 2;
+            self.pc += WORD;
         }
     }
 
     fn sknp(&mut self, x: usize) {
         if self.keys[self.v[x] as usize] == false {
-            self.pc += WORD * 2;
+            self.pc += WORD;
         }
     }
 }
