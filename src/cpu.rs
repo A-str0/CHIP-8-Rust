@@ -18,8 +18,8 @@ const FONTS: [u8; 80] = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 ];
-pub const DISPLAY_WIDTH: usize = 64;
-pub const DISPLAY_HEIGHT: usize = 32;
+pub const DISPLAY_HEIGHT: usize = 64;
+pub const DISPLAY_WIDTH: usize  = 32;
 pub const DISPLAY_SCALE: usize  = 4;
 const WORD: u16 = 2;
 pub struct Chip8CPU {
@@ -33,11 +33,23 @@ pub struct Chip8CPU {
 
     delay_timer: u8,
     sound_timer: u8,
+    // TODO: change to bitmask
     keys: [bool; 16],       // all keys
 }
 
 impl Chip8CPU {
     pub fn get_display(&self) -> &[u8; DISPLAY_HEIGHT * DISPLAY_WIDTH / 8] { &self.display }
+
+    pub fn decrease_delay_timer(&mut self) {
+        if self.delay_timer > 0 { 
+            self.delay_timer -= 1; 
+        }
+    }
+    pub fn decrease_sound_timer(&mut self) {
+        if self.sound_timer > 0 { 
+            self.sound_timer -= 1; 
+        }
+    }
 
     pub fn new() -> Self {
         let mut cpu: Chip8CPU = Chip8CPU { 
@@ -77,7 +89,6 @@ impl Chip8CPU {
         if self.sound_timer > 0 {
             self.sound_timer -= 1;
         } 
-
     }
 
     fn fetch_oppcode(&mut self) -> u16 {

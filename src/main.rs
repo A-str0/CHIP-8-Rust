@@ -32,6 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if now - last_timer >= TIMER_DURATION {
+            cpu.decrease_delay_timer();
+            cpu.decrease_sound_timer();
             last_timer = now;
         }
 
