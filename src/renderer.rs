@@ -30,22 +30,29 @@ impl Renderer {
         Ok(s)
     }
 
-    pub fn draw(&mut self, cpu: &mut Chip8CPU) -> Result<(), String> {
+    pub fn draw(&mut self, cpu: &Chip8CPU) -> Result<(), String> {
+        // Чёрный фон
         self.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.canvas.clear();
 
-        self.canvas.set_draw_color(Color::RGB(0, 255, 0));
+        // Зелёный пиксель (можно любой цвет)
+        self.canvas.set_draw_color(Color::RGB(0, 255, 100));
 
-        for (i, &byte) in cpu.get_display().iter().enumerate() {
-            let y = i / 8;
-            let x_base = (i % 8) * 8;
+        // Проходим по всей битовой карте (256 байт = 2048 пикселей)
+        for (byte_idx, &byte) in cpu.get_display().iter().enumerate() {
+            // Координаты строки и базовой колонки
+            let y = byte_idx / 8;                     // 256 байт → 32 строки
+            let x_base = (byte_idx % 8) * 8;           // каждый байт → 8 пикселей по X
 
+            // Проверяем каждый бит в байте
             for bit in 0..8 {
                 if (byte & (1 << (7 - bit))) != 0 {
-                    let x = x_base + bit;
+                    let pixel_x = x_base + bit;
+                    let pixel_y = y;
+
                     let rect = Rect::new(
-                        (x as i32) * DISPLAY_SCALE as i32,
-                        (y as i32) * DISPLAY_SCALE as i32,
+                        (pixel_x as i32) * DISPLAY_SCALE as i32,
+                        (pixel_y as i32) * DISPLAY_SCALE as i32,
                         DISPLAY_SCALE as u32,
                         DISPLAY_SCALE as u32,
                     );

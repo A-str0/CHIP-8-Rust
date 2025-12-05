@@ -20,12 +20,12 @@ const FONTS: [u8; 80] = [
 ];
 pub const DISPLAY_HEIGHT: usize = 64;
 pub const DISPLAY_WIDTH: usize  = 32;
-pub const DISPLAY_SCALE: usize  = 4;
+pub const DISPLAY_SCALE: usize  = 2;
 const WORD: u16 = 2;
 pub struct Chip8CPU {
     memory: [u8; 4096],     // chip RAM
     stack: [u16; 16],       // stack
-    display: [u8; DISPLAY_HEIGHT * DISPLAY_WIDTH / 8],     // display
+    display: [u8; (DISPLAY_HEIGHT * DISPLAY_WIDTH) / 8],     // display
     v: [u8; 16],            // v registries
     i: u16,                 // i registry
     pc: u16,                // program counter
@@ -38,7 +38,7 @@ pub struct Chip8CPU {
 }
 
 impl Chip8CPU {
-    pub fn get_display(&self) -> &[u8; DISPLAY_HEIGHT * DISPLAY_WIDTH / 8] { &self.display }
+    pub fn get_display(&self) -> &[u8; (DISPLAY_HEIGHT * DISPLAY_WIDTH) / 8] { &self.display }
 
     pub fn decrease_delay_timer(&mut self) {
         if self.delay_timer > 0 { 
@@ -55,7 +55,7 @@ impl Chip8CPU {
         let mut cpu: Chip8CPU = Chip8CPU { 
             memory: [0; 4096], 
             stack: [0; 16],
-            display: [0; DISPLAY_HEIGHT * DISPLAY_WIDTH / 8],
+            display: [0; (DISPLAY_HEIGHT * DISPLAY_WIDTH) / 8],
             v: [0; 16], 
             i: 0, pc: 0, sp: 0,
             delay_timer: 0,
@@ -79,24 +79,18 @@ impl Chip8CPU {
     }
 
     pub fn cycle(&mut self) {
-        let oppcode = self.fetch_oppcode();
+        let opcode = self.fetch_oppcode();
 
-        self.execute(oppcode).expect("error lol");
+        println!("OPCODE: {:04X} (PC: {})", opcode, self.pc);
 
-        if self.delay_timer > 0 {
-            self.delay_timer -= 1;
-        } 
-        if self.sound_timer > 0 {
-            self.sound_timer -= 1;
-        } 
+        self.execute(opcode).expect("error lol");
     }
 
     fn fetch_oppcode(&mut self) -> u16 {
-        if self.pc >= 4096 { panic!("Program Counter is out of bounds! ({})", self.pc) }
+        if self.pc >= 4096 - 1 { return 0; }
 
         let high = self.memory[self.pc as usize] as u16;
         let low  = self.memory[(self.pc + 1) as usize] as u16;
-        self.pc += WORD;
         (high << 8) | low
     }
 
@@ -116,7 +110,7 @@ impl Chip8CPU {
             (opcode & 0x000F) as u8,
         );
 
-        match  nibbles {
+        match nibbles {
             (0x0, 0x0, 0xE, 0x0) => self.cls(),
             (0x0, 0x0, 0xE, 0xE) => self.ret(),
             (0x0, _,    _,    _) => self.sys(nnn),
@@ -163,13 +157,14 @@ impl Chip8CPU {
     }
 
     fn cls(&mut self) {
-        self.display.iter_mut().for_each(|pixel| { *pixel = 0; });
+        self.display.fill(0);
+        self.pc += WORD;
     }
 
     fn ret(&mut self) {
         self.sp -= 1;
         self.pc = self.stack[self.sp as usize];
-        // self.pc += WORD;
+        self.pc += WORD; // TODO
     }
 
     fn jp(&mut self, addr: u16) {
@@ -183,44 +178,54 @@ impl Chip8CPU {
         self.stack[self.sp as usize] = self.pc;
         self.sp += 1;
         self.pc = addr;
+        self.pc += WORD; // TODO
     }
 
     fn se_kk(&mut self, x: usize, kk: u8) {
         if self.v[x] == kk {
             self.pc += WORD;
         }
+        self.pc += WORD;
     }
     fn se_y(&mut self, x: usize, y: usize) {
         if self.v[x] == self.v[y] {
             self.pc += WORD;
         }
+        self.pc += WORD;
     }
     
     fn sne_kk(&mut self, x: usize, kk: u8) {
         if self.v[x] != kk {
             self.pc += WORD;
         }
+        self.pc += WORD;
     }
     fn sne_y(&mut self, x: usize, y: usize) {
         if self.v[x] != self.v[y] {
             self.pc += WORD;
         }
+        self.pc += WORD;
     }
 
     fn ld_ll(&mut self, x: usize, kk: u8) {
         self.v[x] = kk;
+        self.pc += WORD;
     }
     fn ld_y(&mut self, x: usize, y: usize) {
         self.v[x] = self.v[y];
+        self.pc += WORD;
     }
     fn ld_i(&mut self, addr: u16) {
         self.i = addr;
+        self.pc += WORD;
     }
     fn ld_dt(&mut self, x: usize) {
         self.v[x] = self.delay_timer;
+        self.pc += WORD;
     }
     fn ld_st(&mut self, x: usize) {
         self.v[x] = self.sound_timer;
+        self.pc += WORD;
     }
     fn ld_x(&mut self, x: usize) {
         for key in 0..16 {
@@ -234,71 +239,86 @@ impl Chip8CPU {
     }
     fn ld_f(&mut self, x: usize) {
         self.i = (self.v[x] as u16) * 5;
+        self.pc += WORD;
     }
     fn ld_b(&mut self, x: usize) {
         let v = self.v[x];
         self.memory[self.i as usize] = v / 100;
         self.memory[self.i as usize + 1] = (v / 10) % 10;
         self.memory[self.i as usize + 2] = v % 10;
+        self.pc += WORD;
     }
     fn ld_is(&mut self, x: usize) {
         for n in 0..=x {
             self.memory[self.i as usize + n] = self.v[n];
         }
+        self.pc += WORD;
     }
     fn ld_vx(&mut self, x: usize) {
         for n in 0..=x {
             self.v[n] = self.memory[self.i as usize + n];
         }
+        self.pc += WORD;
     }
 
     fn add_kk(&mut self, x: usize, kk: u8) {
         self.v[x] = self.v[x].wrapping_add(kk);
+        self.pc += WORD;
     }
     fn add_y(&mut self, x: usize, y: usize) {
         let (res, overflow) = self.v[x].overflowing_add(self.v[y]);
         self.v[0xF] = (overflow) as u8;
         self.v[x] = res;
+        self.pc += WORD;
     }
     fn add_i(&mut self, x: usize) {
         self.i = self.i.wrapping_add(self.v[x] as u16);
+        self.pc += WORD;
     }
 
     fn sub(&mut self, x: usize, y: usize) {
         self.v[0xF] = if self.v[x] > self.v[y] { 1 } else { 0 };
         self.v[x] = self.v[x].wrapping_sub(self.v[y]);
+        self.pc += WORD;
     }
     fn subn(&mut self, x: usize, y: usize) {
         self.v[0xF] = if self.v[y] > self.v[x] { 1 } else { 0 };
         self.v[x] = self.v[y].wrapping_sub(self.v[x]);
+        self.pc += WORD;
     }
 
     fn or(&mut self, x: usize, y: usize) {
         self.v[x] |= self.v[y];
+        self.pc += WORD;
     }
 
     fn and(&mut self, x: usize, y: usize) {
         self.v[x] &= self.v[y];
+        self.pc += WORD;
     }
 
     fn xor(&mut self, x: usize, y: usize) {
         self.v[x] ^= self.v[y];
+        self.pc += WORD;
     }
 
     fn shr(&mut self, x: usize, _y: usize) {
         let vx = self.v[x];
         self.v[0xF] = vx & 1;
         self.v[x] = vx >> 1;
+        self.pc += WORD;
     }
 
     fn shl(&mut self, x: usize, _y: usize) {
         let vx = self.v[x];
         self.v[0xF] = (vx >> 7) & 1;
         self.v[x] = vx << 1;
+        self.pc += WORD;
     }
 
     fn rnd(&mut self, x: usize, kk: u8) {
         self.v[x] = rand::random::<u8>() & kk;
+        self.pc += WORD;
     }
 
     fn drw(&mut self, vx: usize, vy: usize, n: u8) {
@@ -329,7 +349,6 @@ impl Chip8CPU {
                 }
 
                 let new_bit = screen_bit ^ sprite_bit;
-
                 if new_bit == 1 {
                     self.display[byte_idx] |= 1 << bit_idx;
                 } else {
@@ -337,17 +356,21 @@ impl Chip8CPU {
                 }
             }
         }
+
+        self.pc += WORD;
     }
 
     fn skp(&mut self, x: usize) {
         if self.keys[self.v[x] as usize] == true {
             self.pc += WORD;
         }
+        self.pc += WORD;
     }
 
     fn sknp(&mut self, x: usize) {
         if self.keys[self.v[x] as usize] == false {
             self.pc += WORD;
         }
+        self.pc += WORD;
     }
 }
