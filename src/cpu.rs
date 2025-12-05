@@ -118,7 +118,7 @@ impl Chip8CPU {
             (0x3, _, _, _)       => self.se_kk(x, kk),
             (0x4, _, _, _)       => self.sne_kk(x, kk),
             (0x5, _, _, 0x0)     => self.se_y(x, y),
-            (0x6, _, _, _)       => self.ld_ll(x, kk),
+            (0x6, _, _, _)       => self.ld_kk(x, kk),
             (0x7, _, _, _)       => self.add_kk(x, kk),
             (0x8, _, _, 0x0)     => self.ld_y(x, y),
             (0x8, _, _, 0x1)     => self.or(x, y),
@@ -163,7 +163,6 @@ impl Chip8CPU {
     fn ret(&mut self) {
         self.sp -= 1;
         self.pc = self.stack[self.sp as usize];
-        self.pc += WORD; // TODO
     }
 
     fn jp(&mut self, addr: u16) {
@@ -174,10 +173,9 @@ impl Chip8CPU {
     }
 
     fn call(&mut self, addr: u16) {
-        self.stack[self.sp as usize] = self.pc;
+        self.stack[self.sp as usize] = self.pc + WORD;
         self.sp += 1;
         self.pc = addr;
-        self.pc += WORD; // TODO
     }
 
     fn se_kk(&mut self, x: usize, kk: u8) {
@@ -206,7 +204,7 @@ impl Chip8CPU {
         self.pc += WORD;
     }
 
-    fn ld_ll(&mut self, x: usize, kk: u8) {
+    fn ld_kk(&mut self, x: usize, kk: u8) {
         self.v[x] = kk;
         self.pc += WORD;
     }
@@ -233,8 +231,6 @@ impl Chip8CPU {
                 return;
             }
         }
-
-        self.pc -= WORD;
     }
     fn ld_f(&mut self, x: usize) {
         self.i = (self.v[x] as u16) * 5;
@@ -261,17 +257,18 @@ impl Chip8CPU {
     }
 
     fn add_kk(&mut self, x: usize, kk: u8) {
-        self.v[x] = self.v[x].wrapping_add(kk);
+        self.v[x] += kk;
         self.pc += WORD;
     }
     fn add_y(&mut self, x: usize, y: usize) {
         let (res, overflow) = self.v[x].overflowing_add(self.v[y]);
-        self.v[0xF] = (overflow) as u8;
+        self.v[0xF] = if overflow {1} else {0};
         self.v[x] = res;
         self.pc += WORD;
     }
     fn add_i(&mut self, x: usize) {
         self.i = self.i.wrapping_add(self.v[x] as u16);
+        self.v[0xF] = if self.i > 0x0F00 { 1 } else { 0 };
         self.pc += WORD;
     }
 
@@ -302,16 +299,14 @@ impl Chip8CPU {
     }
 
     fn shr(&mut self, x: usize, _y: usize) {
-        let vx = self.v[x];
-        self.v[0xF] = vx & 1;
-        self.v[x] = vx >> 1;
+        self.v[0xF] = self.v[x] & 1;
+        self.v[x] >>= 1;
         self.pc += WORD;
     }
 
     fn shl(&mut self, x: usize, _y: usize) {
-        let vx = self.v[x];
-        self.v[0xF] = (vx >> 7) & 1;
-        self.v[x] = vx << 1;
+        self.v[0xF] = (self.v[x] >> 7) & 1;
+        self.v[x] <<= 1;
         self.pc += WORD;
     }
 
