@@ -7,9 +7,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut cpu = cpu::Chip8CPU::new();
     let mut renderer = renderer::Renderer::new()?;
 
-    // cpu.load_rom("Brick.ch8")?;
+    cpu.load_rom("Brick.ch8")?;
     // cpu.load_rom("tests/1-chip8-logo.ch8")?;
-    cpu.load_rom("tests/2-ibm-logo.ch8")?;
+    // cpu.load_rom("tests/2-ibm-logo.ch8")?;
 
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();

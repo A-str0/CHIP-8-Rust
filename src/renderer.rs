@@ -1,6 +1,6 @@
 use sdl2::{pixels::Color, rect::Rect, render::Canvas, video::Window};
 
-use crate::cpu::{Chip8CPU, DISPLAY_SCALE, DISPLAY_HEIGHT, DISPLAY_WIDTH};
+use crate::cpu::{Chip8CPU, DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
 pub struct Renderer {
     canvas: Canvas<Window>,
@@ -51,10 +51,10 @@ impl Renderer {
                     let pixel_y = y;
 
                     let rect = Rect::new(
-                        (pixel_x as i32) * DISPLAY_SCALE as i32,
-                        (pixel_y as i32) * DISPLAY_SCALE as i32,
-                        DISPLAY_SCALE as u32,
-                        DISPLAY_SCALE as u32,
+                        pixel_x as i32,
+                        pixel_y as i32,
+                        1,
+                        1,
                     );
                     self.canvas.fill_rect(rect)?;
                 }

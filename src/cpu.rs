@@ -20,7 +20,6 @@ const FONTS: [u8; 80] = [
 ];
 pub const DISPLAY_HEIGHT: usize = 64;
 pub const DISPLAY_WIDTH: usize  = 32;
-pub const DISPLAY_SCALE: usize  = 2;
 const WORD: u16 = 2;
 pub struct Chip8CPU {
     memory: [u8; 4096],     // chip RAM
@@ -324,16 +323,16 @@ impl Chip8CPU {
     fn drw(&mut self, vx: usize, vy: usize, n: u8) {
         self.v[0xF] = 0;
 
-        let start_x = (self.v[vx] as usize) % 64;
-        let start_y = (self.v[vy] as usize) % 32;
+        let start_x = (self.v[vx] as usize) % DISPLAY_HEIGHT;
+        let start_y = (self.v[vy] as usize) % DISPLAY_WIDTH;
 
         for row in 0..n as usize {
-            if start_y + row >= 32 { break; }
+            if start_y + row >= DISPLAY_WIDTH { break; }
 
             let sprite_byte = self.memory[self.i as usize + row];
 
             for col in 0..8 {
-                if start_x + col >= 64 { break; }
+                if start_x + col >= DISPLAY_HEIGHT { break; }
 
                 let pixel_x = start_x + col;
                 let pixel_y = start_y + row;
