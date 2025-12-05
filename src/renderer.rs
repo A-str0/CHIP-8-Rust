@@ -1,9 +1,10 @@
-use sdl2::{pixels::Color, rect::Rect, render::Canvas, video::Window};
+use sdl2::{EventPump, keyboard::Keycode, pixels::Color, rect::Rect, render::Canvas, video::Window};
 
 use crate::cpu::{Chip8CPU, DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
 pub struct Renderer {
     canvas: Canvas<Window>,
+    event_pump: EventPump,
 }
 
 impl Renderer {
@@ -23,28 +24,71 @@ impl Renderer {
         canvas.set_logical_size(DISPLAY_HEIGHT as u32, DISPLAY_WIDTH as u32)
             .map_err(|e| e.to_string())?;
 
+        let event_pump = sdl_context.event_pump()?;
+
         let s =  Self { 
             canvas: canvas,
+            event_pump: event_pump,
         };
 
         Ok(s)
     }
 
+    pub fn handle_input(&mut self, cpu: &mut Chip8CPU) -> bool {
+        for event in self.event_pump.poll_iter() {
+            match event {
+                sdl2::event::Event::Quit { .. } => return false,
+
+                sdl2::event::Event::KeyDown { keycode: Some(key), .. } => {
+                    if let Some(chip8_key) = Renderer::sdl_to_chip8(key) {  // ← теперь &self!
+                        cpu.keys |= 1 << chip8_key;
+                    }
+                }
+
+                sdl2::event::Event::KeyUp { keycode: Some(key), .. } => {
+                    if let Some(chip8_key) = Renderer::sdl_to_chip8(key) {
+                        cpu.keys &= !(1 << chip8_key);
+                    }
+                }
+
+                _ => {}
+            }
+        }
+        true
+    }
+
+    fn sdl_to_chip8(key: Keycode) -> Option<u8> {
+        match key {
+            Keycode::Num1 => Some(0x1),
+            Keycode::Num2 => Some(0x2),
+            Keycode::Num3 => Some(0x3),
+            Keycode::Num4 => Some(0xC),
+            Keycode::Q => Some(0x4),
+            Keycode::W => Some(0x5),
+            Keycode::E => Some(0x6),
+            Keycode::R => Some(0xD),
+            Keycode::A => Some(0x7),
+            Keycode::S => Some(0x8),
+            Keycode::D => Some(0x9),
+            Keycode::F => Some(0xE),
+            Keycode::Z => Some(0xA),
+            Keycode::X => Some(0x0),
+            Keycode::C => Some(0xB),
+            Keycode::V => Some(0xF),
+            _ => None,
+        }
+    }
+
     pub fn draw(&mut self, cpu: &Chip8CPU) -> Result<(), String> {
-        // Чёрный фон
         self.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.canvas.clear();
 
-        // Зелёный пиксель (можно любой цвет)
         self.canvas.set_draw_color(Color::RGB(0, 255, 100));
 
-        // Проходим по всей битовой карте (256 байт = 2048 пикселей)
         for (byte_idx, &byte) in cpu.get_display().iter().enumerate() {
-            // Координаты строки и базовой колонки
-            let y = byte_idx / 8;                     // 256 байт → 32 строки
-            let x_base = (byte_idx % 8) * 8;           // каждый байт → 8 пикселей по X
+            let y = byte_idx / 8;
+            let x_base = (byte_idx % 8) * 8;
 
-            // Проверяем каждый бит в байте
             for bit in 0..8 {
                 if (byte & (1 << (7 - bit))) != 0 {
                     let pixel_x = x_base + bit;

@@ -32,7 +32,7 @@ pub struct Chip8CPU {
 
     delay_timer: u8,
     sound_timer: u8,
-    keys: u16,              // all keys
+    pub keys: u16,              // all keys
 }
 
 impl Chip8CPU {
@@ -225,7 +225,7 @@ impl Chip8CPU {
     }
     fn ld_x(&mut self, x: usize) {
         for key in 0..16 {
-            if (self.keys << key & 1) == 1 {
+            if (self.keys & (1 << key)) != 0 {
                 self.v[x] = key as u8;
                 return;
             }
@@ -256,7 +256,7 @@ impl Chip8CPU {
     }
 
     fn add_kk(&mut self, x: usize, kk: u8) {
-        self.v[x] += kk;
+        self.v[x] = self.v[x].wrapping_add(kk);
         self.pc += WORD;
     }
     fn add_y(&mut self, x: usize, y: usize) {
@@ -354,14 +354,14 @@ impl Chip8CPU {
     }
 
     fn skp(&mut self, x: usize) {
-        if ((self.keys << self.v[x]) & 1) == 1 {
+        if (self.keys & (1 << self.v[x])) != 0 {
             self.pc += WORD;
         }
         self.pc += WORD;
     }
 
     fn sknp(&mut self, x: usize) {
-        if ((self.keys << self.v[x]) & 1) == 0 {
+        if (self.keys & (1 << self.v[x])) == 0 {
             self.pc += WORD;
         }
         self.pc += WORD;

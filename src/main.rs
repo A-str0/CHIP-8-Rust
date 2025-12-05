@@ -27,6 +27,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     while running.load(Ordering::SeqCst) {
         let now = Instant::now();
 
+        if !renderer.handle_input(&mut cpu) {
+            break;
+        }
+
         for _ in 0..CPU_CYCLES_PER_FRAME {
             cpu.cycle();
         }
