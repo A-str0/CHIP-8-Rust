@@ -32,8 +32,7 @@ pub struct Chip8CPU {
 
     delay_timer: u8,
     sound_timer: u8,
-    // TODO: change to bitmask
-    keys: [bool; 16],       // all keys
+    keys: u16,              // all keys
 }
 
 impl Chip8CPU {
@@ -59,7 +58,7 @@ impl Chip8CPU {
             i: 0, pc: 0, sp: 0,
             delay_timer: 0,
             sound_timer: 0,
-            keys: [false; 16],
+            keys: 0,
         };
         cpu.pc = 0x200;
         cpu.memory[0..80].copy_from_slice(&FONTS);
@@ -226,7 +225,7 @@ impl Chip8CPU {
     }
     fn ld_x(&mut self, x: usize) {
         for key in 0..16 {
-            if self.keys[key] {
+            if (self.keys << key & 1) == 1 {
                 self.v[x] = key as u8;
                 return;
             }
@@ -355,14 +354,14 @@ impl Chip8CPU {
     }
 
     fn skp(&mut self, x: usize) {
-        if self.keys[self.v[x] as usize] == true {
+        if ((self.keys << self.v[x]) & 1) == 1 {
             self.pc += WORD;
         }
         self.pc += WORD;
     }
 
     fn sknp(&mut self, x: usize) {
-        if self.keys[self.v[x] as usize] == false {
+        if ((self.keys << self.v[x]) & 1) == 0 {
             self.pc += WORD;
         }
         self.pc += WORD;
