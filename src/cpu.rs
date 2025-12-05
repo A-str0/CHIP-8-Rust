@@ -92,7 +92,7 @@ impl Chip8CPU {
     }
 
     fn fetch_oppcode(&mut self) -> u16 {
-        if self.pc >= 4096 { return 0; }
+        if self.pc >= 4096 { panic!("Program Counter is out of bounds! ({})", self.pc) }
 
         let high = self.memory[self.pc as usize] as u16;
         let low  = self.memory[(self.pc + 1) as usize] as u16;
