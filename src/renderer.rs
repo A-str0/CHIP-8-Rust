@@ -1,111 +1,77 @@
-use sdl2::{EventPump, keyboard::Keycode, pixels::Color, rect::Rect, render::Canvas, video::Window};
-
+use ratatui::{
+    init, prelude::*, restore, widgets::{Block, Borders, Paragraph}
+};
 use crate::cpu::{Chip8CPU, DISPLAY_HEIGHT, DISPLAY_WIDTH};
 
+const TICK_PER_CYCLE: u8 = 12;
+
 pub struct Renderer {
-    canvas: Canvas<Window>,
-    event_pump: EventPump,
+    cpu: Chip8CPU,
+    quit: bool,
 }
 
 impl Renderer {
-    pub fn new() -> Result<Self, String> {
-        let sdl_context = sdl2::init()?;
-        let video_subsystem = sdl_context.video()?;
-        let window = video_subsystem
-            .window("rust-sdl2 example", 800, 600)
-            .opengl()
-            .build()
-            .map_err(|e| e.to_string())?;
-
-        let mut canvas = window.into_canvas()
-            .present_vsync()
-            .build()
-            .map_err(|e| e.to_string())?;
-        canvas.set_logical_size(DISPLAY_HEIGHT as u32, DISPLAY_WIDTH as u32)
-            .map_err(|e| e.to_string())?;
-
-        let event_pump = sdl_context.event_pump()?;
-
-        let s =  Self { 
-            canvas: canvas,
-            event_pump: event_pump,
-        };
-
-        Ok(s)
+    pub fn new(cpu: Chip8CPU) -> Self {
+        Self { cpu, quit: false }
     }
 
-    pub fn handle_input(&mut self, cpu: &mut Chip8CPU) -> bool {
-        for event in self.event_pump.poll_iter() {
-            match event {
-                sdl2::event::Event::Quit { .. } => return false,
+    pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut terminal = init();
+        let result = self.run_loop(&mut terminal);
+        restore();
 
-                sdl2::event::Event::KeyDown { keycode: Some(key), .. } => {
-                    if let Some(chip8_key) = Renderer::sdl_to_chip8(key) {  // ← теперь &self!
-                        cpu.keys |= 1 << chip8_key;
-                    }
-                }
+        result
+    }
 
-                sdl2::event::Event::KeyUp { keycode: Some(key), .. } => {
-                    if let Some(chip8_key) = Renderer::sdl_to_chip8(key) {
-                        cpu.keys &= !(1 << chip8_key);
-                    }
-                }
+    fn run_loop(&mut self, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<(), Box<dyn std::error::Error>> {
+        while !self.quit {
+            terminal.draw(|frame| self.draw(frame))?;
+            self.handle_events()?;
 
-                _ => {}
+            for _ in 0..TICK_PER_CYCLE {
+                self.cpu.tick();
             }
         }
-        true
+        Ok(())
     }
 
-    fn sdl_to_chip8(key: Keycode) -> Option<u8> {
-        match key {
-            Keycode::Num1 => Some(0x1),
-            Keycode::Num2 => Some(0x2),
-            Keycode::Num3 => Some(0x3),
-            Keycode::Num4 => Some(0xC),
-            Keycode::Q => Some(0x4),
-            Keycode::W => Some(0x5),
-            Keycode::E => Some(0x6),
-            Keycode::R => Some(0xD),
-            Keycode::A => Some(0x7),
-            Keycode::S => Some(0x8),
-            Keycode::D => Some(0x9),
-            Keycode::F => Some(0xE),
-            Keycode::Z => Some(0xA),
-            Keycode::X => Some(0x0),
-            Keycode::C => Some(0xB),
-            Keycode::V => Some(0xF),
-            _ => None,
+    fn draw(&mut self, frame: &mut Frame) {
+        let mut lines = vec![];
+
+        for row in 0..DISPLAY_WIDTH {
+            let mut line = String::with_capacity(DISPLAY_HEIGHT);
+            for col in 0..DISPLAY_HEIGHT {
+                let byte_idx = row * 8 + (col / 8);
+                let bit_idx = 7 - (col % 8);
+                let pixel_on = (self.cpu.get_display()[byte_idx] >> bit_idx) & 1;
+
+                line.push(if pixel_on == 1 {'█'} else {' '});
+            }
+            lines.push(Line::from(line));
         }
+
+        let paragraph = Paragraph::new(lines)
+            .block(Block::default().title(" CHIP-8//Rust ")
+            .borders(Borders::ALL))
+            .fg(Color::Green)
+            .bg(Color::Black);
+
+        frame.render_widget(paragraph, frame.area());
     }
 
-    pub fn draw(&mut self, cpu: &Chip8CPU) -> Result<(), String> {
-        self.canvas.set_draw_color(Color::RGB(0, 0, 0));
-        self.canvas.clear();
+    fn handle_events(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        use crossterm::event::{poll, read, Event, KeyCode, KeyEventKind};
 
-        self.canvas.set_draw_color(Color::RGB(0, 255, 100));
-
-        for (byte_idx, &byte) in cpu.get_display().iter().enumerate() {
-            let y = byte_idx / 8;
-            let x_base = (byte_idx % 8) * 8;
-
-            for bit in 0..8 {
-                if (byte & (1 << (7 - bit))) != 0 {
-                    let pixel_x = x_base + bit;
-                    let pixel_y = y;
-
-                    let rect = Rect::new(
-                        pixel_x as i32,
-                        pixel_y as i32,
-                        1,
-                        1,
-                    );
-                    self.canvas.fill_rect(rect)?;
+        if poll(std::time::Duration::from_millis(16))? {
+            if let Event::Key(key) = read()? {
+                if key.kind == KeyEventKind::Press {
+                    match key.code {
+                        KeyCode::Char('q') | KeyCode::Char('Q') => self.quit = true,
+                        _ => {}
+                    }
                 }
             }
         }
-
-        self.canvas.present();
         Ok(())
     }
 }
