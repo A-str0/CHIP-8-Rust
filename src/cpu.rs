@@ -1,7 +1,7 @@
 use std::fs;
 
-pub const DISPLAY_HEIGHT: usize = 64;
-pub const DISPLAY_WIDTH: usize  = 32;
+pub const DISPLAY_HEIGHT: usize = 32;
+pub const DISPLAY_WIDTH: usize  = 64;
 
 const MAX_MEMORY: usize = 4096;
 const WORD: u16 = 2;
@@ -148,10 +148,10 @@ impl Chip8CPU {
             (0xD, _, _, _)       => self.drw(x, y, n),
             (0xE, _, 0x9, 0xE)   => self.skp(x),
             (0xE, _, 0xA, 0x1)   => self.sknp(x),
-            (0xF, _, 0x0, 0x7)   => self.ld_dt(x),
+            (0xF, _, 0x0, 0x7)   => self.ld_vx_dt(x),
             (0xF, _, 0x0, 0xA)   => self.ld_x(x),
-            (0xF, _, 0x1, 0x5)   => self.ld_dt(x),
-            (0xF, _, 0x1, 0x8)   => self.ld_st(x),
+            (0xF, _, 0x1, 0x5)   => self.ld_dt_vx(x),
+            (0xF, _, 0x1, 0x8)   => self.ld_st_vx(x),
             (0xF, _, 0x1, 0xE)   => self.add_i(x),
             (0xF, _, 0x2, 0x9)   => self.ld_f(x),
             (0xF, _, 0x3, 0x3)   => self.ld_b(x),
@@ -235,12 +235,16 @@ impl Chip8CPU {
         self.i = addr;
         PcOpertion::NEXT
     }
-    fn ld_dt(&mut self, x: usize) -> PcOpertion {
+    fn ld_vx_dt(&mut self, x: usize) -> PcOpertion {
         self.v[x] = self.delay_timer;
         PcOpertion::NEXT
     }
-    fn ld_st(&mut self, x: usize) -> PcOpertion {
-        self.v[x] = self.sound_timer;
+    fn ld_dt_vx(&mut self, x: usize) -> PcOpertion {
+        self.delay_timer = self.v[x];
+        PcOpertion::NEXT
+    }
+    fn ld_st_vx(&mut self, x: usize) -> PcOpertion {
+        self.sound_timer = self.v[x];
         PcOpertion::NEXT
     }
     fn ld_x(&mut self, x: usize) -> PcOpertion {
@@ -339,16 +343,16 @@ impl Chip8CPU {
     fn drw(&mut self, vx: usize, vy: usize, n: u8) -> PcOpertion {
         self.v[0xF] = 0;
 
-        let start_x = (self.v[vx] as usize) % DISPLAY_HEIGHT;
-        let start_y = (self.v[vy] as usize) % DISPLAY_WIDTH;
+        let start_x = (self.v[vx] as usize) % DISPLAY_WIDTH;
+        let start_y = (self.v[vy] as usize) % DISPLAY_HEIGHT;
 
         for row in 0..n as usize {
-            if start_y + row >= DISPLAY_WIDTH { break; }
+            if start_y + row >= DISPLAY_HEIGHT { break; }
 
             let sprite_byte = self.memory[self.i as usize + row];
 
             for col in 0..8 {
-                if start_x + col >= DISPLAY_HEIGHT { break; }
+                if start_x + col >= DISPLAY_WIDTH { break; }
 
                 let pixel_x = start_x + col;
                 let pixel_y = start_y + row;
