@@ -4,10 +4,12 @@ mod cpu;
 mod renderer;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut cpu = cpu::Chip8CPU::new();
-    let mut renderer = renderer::Renderer::new()?;
+    let mut cpu = cpu::Chip8CPU::new()?;
 
+    cpu.reset()?;
     cpu.load_rom("Brick.ch8")?;
+
+    let mut renderer = renderer::Renderer::new()?;
 
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -32,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         for _ in 0..CPU_CYCLES_PER_FRAME {
-            cpu.cycle();
+            cpu.tick();
         }
 
         if now - last_timer >= TIMER_DURATION {

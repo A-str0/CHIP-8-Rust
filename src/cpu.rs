@@ -1,38 +1,28 @@
 use std::fs;
 
-const FONTS: [u8; 80] = [
-    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-    0x20, 0x60, 0x20, 0x20, 0x70, // 1
-    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-    0xF0, 0x80, 0xF0, 0x80, 0x80  // F
-];
 pub const DISPLAY_HEIGHT: usize = 64;
 pub const DISPLAY_WIDTH: usize  = 32;
-const WORD: u16 = 2;
-pub struct Chip8CPU {
-    memory: [u8; 4096],     // chip RAM
-    stack: [u16; 16],       // stack
-    display: [u8; (DISPLAY_HEIGHT * DISPLAY_WIDTH) / 8],     // display
-    v: [u8; 16],            // v registries
-    i: u16,                 // i registry
-    pc: u16,                // program counter
-    sp: u8,                 // stack pointer
 
+const MAX_MEMORY: usize = 4096;
+const WORD: u16 = 2;
+
+pub struct Chip8CPU {
+    memory: [u8; MAX_MEMORY],       // chip RAM
+    stack: [u16; 16],               // stack
+    display: [u8; (DISPLAY_HEIGHT * DISPLAY_WIDTH) / 8],     // display
+    v: [u8; 16],                    // v registries
+    i: u16,                         // i registry
+    pc: u16,                        // program counter
+    sp: u8,                         // stack pointer
     delay_timer: u8,
     sound_timer: u8,
-    pub keys: u16,              // all keys
+    pub keys: u16,                  // all keys
+}
+
+enum PcOpertion {
+    NEXT,
+    SKIP,
+    JUMP(u16)
 }
 
 impl Chip8CPU {
@@ -49,43 +39,71 @@ impl Chip8CPU {
         }
     }
 
-    pub fn new() -> Self {
-        let mut cpu: Chip8CPU = Chip8CPU { 
-            memory: [0; 4096], 
+    pub fn new() -> Result<Self, String> {
+        let mut cpu = Chip8CPU { 
+            memory: [0; MAX_MEMORY], 
             stack: [0; 16],
             display: [0; (DISPLAY_HEIGHT * DISPLAY_WIDTH) / 8],
             v: [0; 16], 
-            i: 0, pc: 0, sp: 0,
+            i: 0, pc: 0x200, sp: 0,
             delay_timer: 0,
             sound_timer: 0,
             keys: 0,
         };
-        cpu.pc = 0x200;
-        cpu.memory[0..80].copy_from_slice(&FONTS);
-        cpu
+        cpu.load_fonts()?;
+        
+        Ok(cpu)
+    }
+    pub fn reset(&mut self) -> Result<(), String> {
+        self.memory.fill(0);
+        self.stack.fill(0);
+        self.display.fill(0);
+        self.v.fill(0);
+        self.i = 0;
+        self.pc = 0;
+        self.sp = 0;
+        self.delay_timer = 0;
+        self.sound_timer = 0;
+        self.keys = 0;
+
+        self.load_fonts()?;
+        Ok(())
     }
 
     pub fn load_rom(&mut self, path: &str) -> Result<(), String> {
         let rom = fs::read(path).map_err(|e| format!("Failed to read ROM: {}", e))?;
 
-        if rom.len() > 4096 - 0x200 { // all avaliable space on chip
+        if rom.len() > MAX_MEMORY - 0x200 {
             return Err(format!("ROM is too big! ({})", rom.len()));
         }
         self.memory[0x200..0x200 + rom.len()].copy_from_slice(&rom);
 
         Ok(())
     }
+    fn load_fonts(&mut self) -> Result<(), String> {
+        let fonts = fs::read("chip8_fonts.bin").map_err(|e| format!("Failed to read Fonts: {}", e))?;
 
-    pub fn cycle(&mut self) {
+        if fonts.len() > 80 {
+            return Err(format!("Fonts binary file is corrupted: {}", fonts.len()));
+        }
+        self.memory[0..80].copy_from_slice(&fonts);
+
+        Ok(())
+    }
+
+    pub fn tick(&mut self) {
         let opcode = self.fetch_oppcode();
 
-        println!("OPCODE: {:04X} (PC: {})", opcode, self.pc);
+        #[cfg(debug_assertions)]
+        {
+            println!("OPCODE: {:04X} (PC: {})", opcode, self.pc);
+        }
 
         self.execute(opcode).expect("error lol");
     }
 
     fn fetch_oppcode(&mut self) -> u16 {
-        if self.pc >= 4096 - 1 { return 0; }
+        if usize::from(self.pc) >= MAX_MEMORY - 1 { return 0; }
 
         let high = self.memory[self.pc as usize] as u16;
         let low  = self.memory[(self.pc + 1) as usize] as u16;
@@ -108,7 +126,7 @@ impl Chip8CPU {
             (opcode & 0x000F) as u8,
         );
 
-        match nibbles {
+        let pc_op = match nibbles {
             (0x0, 0x0, 0xE, 0x0) => self.cls(),
             (0x0, 0x0, 0xE, 0xE) => self.ret(),
             (0x0, _,    _,    _) => self.sys(nnn),
@@ -145,176 +163,184 @@ impl Chip8CPU {
             (0xF, _, 0x5, 0x5)   => self.ld_is(x),
             (0xF, _, 0x6, 0x5)   => self.ld_vx(x),
             _ => return Err(format!("Unknown opcode: {:04X}", opcode)),
-        }
+        };
 
-        return Ok(());
+        match pc_op {
+            PcOpertion::NEXT            => self.pc += WORD,
+            PcOpertion::SKIP            => self.pc += 2 * WORD,
+            PcOpertion::JUMP(addr) => self.pc = addr,
+        };
+
+        Ok(())
     }
 
-    fn sys(&mut self, _addr: u16) { 
+    fn sys(&mut self, _addr: u16) -> PcOpertion { 
         // Do nothing
+        PcOpertion::NEXT
     }
 
-    fn cls(&mut self) {
+    fn cls(&mut self) -> PcOpertion {
         self.display.fill(0);
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn ret(&mut self) {
+    fn ret(&mut self) -> PcOpertion {
         self.sp -= 1;
-        self.pc = self.stack[self.sp as usize];
+        PcOpertion::JUMP(self.stack[self.sp as usize])
     }
 
-    fn jp(&mut self, addr: u16) {
-        self.pc = addr;
+    fn jp(&mut self, addr: u16) -> PcOpertion {
+        PcOpertion::JUMP(addr)
     }
-    fn jp_v0(&mut self, addr: u16) { 
-        self.pc = addr + self.v[0x0] as u16;
+    fn jp_v0(&mut self, addr: u16) -> PcOpertion { 
+        PcOpertion::JUMP(addr + self.v[0x0] as u16)
     }
 
-    fn call(&mut self, addr: u16) {
+    fn call(&mut self, addr: u16) -> PcOpertion {
         self.stack[self.sp as usize] = self.pc + WORD;
         self.sp += 1;
-        self.pc = addr;
+        PcOpertion::JUMP(addr)
     }
 
-    fn se_kk(&mut self, x: usize, kk: u8) {
+    fn se_kk(&mut self, x: usize, kk: u8) -> PcOpertion {
         if self.v[x] == kk {
-            self.pc += WORD;
+            return PcOpertion::SKIP;
         }
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn se_y(&mut self, x: usize, y: usize) {
+    fn se_y(&mut self, x: usize, y: usize) -> PcOpertion {
         if self.v[x] == self.v[y] {
-            self.pc += WORD;
+            return PcOpertion::SKIP;
         }
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
     
-    fn sne_kk(&mut self, x: usize, kk: u8) {
+    fn sne_kk(&mut self, x: usize, kk: u8) -> PcOpertion {
         if self.v[x] != kk {
-            self.pc += WORD;
+            return PcOpertion::SKIP;
         }
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn sne_y(&mut self, x: usize, y: usize) {
+    fn sne_y(&mut self, x: usize, y: usize) -> PcOpertion {
         if self.v[x] != self.v[y] {
-            self.pc += WORD;
+            return PcOpertion::SKIP;
         }
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn ld_kk(&mut self, x: usize, kk: u8) {
+    fn ld_kk(&mut self, x: usize, kk: u8) -> PcOpertion {
         self.v[x] = kk;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn ld_y(&mut self, x: usize, y: usize) {
+    fn ld_y(&mut self, x: usize, y: usize) -> PcOpertion {
         self.v[x] = self.v[y];
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn ld_i(&mut self, addr: u16) {
+    fn ld_i(&mut self, addr: u16) -> PcOpertion {
         self.i = addr;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn ld_dt(&mut self, x: usize) {
+    fn ld_dt(&mut self, x: usize) -> PcOpertion {
         self.v[x] = self.delay_timer;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn ld_st(&mut self, x: usize) {
+    fn ld_st(&mut self, x: usize) -> PcOpertion {
         self.v[x] = self.sound_timer;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn ld_x(&mut self, x: usize) {
+    fn ld_x(&mut self, x: usize) -> PcOpertion {
         for key in 0..16 {
             if (self.keys & (1 << key)) != 0 {
                 self.v[x] = key as u8;
-                return;
+                return PcOpertion::JUMP(self.pc);
             }
         }
+        PcOpertion::NEXT
     }
-    fn ld_f(&mut self, x: usize) {
+    fn ld_f(&mut self, x: usize) -> PcOpertion {
         self.i = (self.v[x] as u16) * 5;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn ld_b(&mut self, x: usize) {
+    fn ld_b(&mut self, x: usize) -> PcOpertion {
         let v = self.v[x];
         self.memory[self.i as usize] = v / 100;
         self.memory[self.i as usize + 1] = (v / 10) % 10;
         self.memory[self.i as usize + 2] = v % 10;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn ld_is(&mut self, x: usize) {
+    fn ld_is(&mut self, x: usize) -> PcOpertion {
         for n in 0..=x {
             self.memory[self.i as usize + n] = self.v[n];
         }
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn ld_vx(&mut self, x: usize) {
+    fn ld_vx(&mut self, x: usize) -> PcOpertion {
         for n in 0..=x {
             self.v[n] = self.memory[self.i as usize + n];
         }
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn add_kk(&mut self, x: usize, kk: u8) {
+    fn add_kk(&mut self, x: usize, kk: u8) -> PcOpertion {
         self.v[x] = self.v[x].wrapping_add(kk);
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn add_y(&mut self, x: usize, y: usize) {
+    fn add_y(&mut self, x: usize, y: usize) -> PcOpertion {
         let (res, overflow) = self.v[x].overflowing_add(self.v[y]);
         self.v[0xF] = if overflow {1} else {0};
         self.v[x] = res;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn add_i(&mut self, x: usize) {
+    fn add_i(&mut self, x: usize) -> PcOpertion {
         self.i = self.i.wrapping_add(self.v[x] as u16);
         self.v[0xF] = if self.i > 0x0F00 { 1 } else { 0 };
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn sub(&mut self, x: usize, y: usize) {
+    fn sub(&mut self, x: usize, y: usize) -> PcOpertion {
         self.v[0xF] = if self.v[x] > self.v[y] { 1 } else { 0 };
         self.v[x] = self.v[x].wrapping_sub(self.v[y]);
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
-    fn subn(&mut self, x: usize, y: usize) {
+    fn subn(&mut self, x: usize, y: usize) -> PcOpertion {
         self.v[0xF] = if self.v[y] > self.v[x] { 1 } else { 0 };
         self.v[x] = self.v[y].wrapping_sub(self.v[x]);
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn or(&mut self, x: usize, y: usize) {
+    fn or(&mut self, x: usize, y: usize) -> PcOpertion {
         self.v[x] |= self.v[y];
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn and(&mut self, x: usize, y: usize) {
+    fn and(&mut self, x: usize, y: usize) -> PcOpertion {
         self.v[x] &= self.v[y];
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn xor(&mut self, x: usize, y: usize) {
+    fn xor(&mut self, x: usize, y: usize) -> PcOpertion {
         self.v[x] ^= self.v[y];
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn shr(&mut self, x: usize, _y: usize) {
+    fn shr(&mut self, x: usize, _y: usize) -> PcOpertion {
         self.v[0xF] = self.v[x] & 1;
         self.v[x] >>= 1;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn shl(&mut self, x: usize, _y: usize) {
+    fn shl(&mut self, x: usize, _y: usize) -> PcOpertion {
         self.v[0xF] = (self.v[x] >> 7) & 1;
         self.v[x] <<= 1;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn rnd(&mut self, x: usize, kk: u8) {
+    fn rnd(&mut self, x: usize, kk: u8) -> PcOpertion {
         self.v[x] = rand::random::<u8>() & kk;
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn drw(&mut self, vx: usize, vy: usize, n: u8) {
+    fn drw(&mut self, vx: usize, vy: usize, n: u8) -> PcOpertion {
         self.v[0xF] = 0;
 
         let start_x = (self.v[vx] as usize) % DISPLAY_HEIGHT;
@@ -350,20 +376,20 @@ impl Chip8CPU {
             }
         }
 
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn skp(&mut self, x: usize) {
+    fn skp(&mut self, x: usize) -> PcOpertion {
         if (self.keys & (1 << self.v[x])) != 0 {
-            self.pc += WORD;
+            return PcOpertion::SKIP;
         }
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 
-    fn sknp(&mut self, x: usize) {
+    fn sknp(&mut self, x: usize) -> PcOpertion {
         if (self.keys & (1 << self.v[x])) == 0 {
-            self.pc += WORD;
+            return PcOpertion::SKIP;
         }
-        self.pc += WORD;
+        PcOpertion::NEXT
     }
 }
