@@ -54,7 +54,7 @@ impl Chip8CPU {
         
         Ok(cpu)
     }
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self) -> Result<(), String> {
         self.memory.fill(0);
         self.stack.fill(0);
         self.display.fill(0);
@@ -66,10 +66,11 @@ impl Chip8CPU {
         self.sound_timer = 0;
         self.keys = 0;
 
-        self.load_fonts();
+        self.load_fonts()?;
+        Ok(())
     }
 
-    fn load_rom(&mut self, path: &str) -> Result<(), String> {
+    pub fn load_rom(&mut self, path: &str) -> Result<(), String> {
         let rom = fs::read(path).map_err(|e| format!("Failed to read ROM: {}", e))?;
 
         if rom.len() > MAX_MEMORY - 0x200 {
