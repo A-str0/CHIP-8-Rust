@@ -28,16 +28,16 @@ enum PcOpertion {
 impl Chip8CPU {
     pub fn get_display(&self) -> &[u8; (DISPLAY_HEIGHT * DISPLAY_WIDTH) / 8] { &self.display }
 
-    // pub fn decrease_delay_timer(&mut self) {
-    //     if self.delay_timer > 0 { 
-    //         self.delay_timer -= 1; 
-    //     }
-    // }
-    // pub fn decrease_sound_timer(&mut self) {
-    //     if self.sound_timer > 0 { 
-    //         self.sound_timer -= 1; 
-    //     }
-    // }
+    pub fn decrease_delay_timer(&mut self) {
+        if self.delay_timer > 0 { 
+            self.delay_timer -= 1; 
+        }
+    }
+    pub fn decrease_sound_timer(&mut self) {
+        if self.sound_timer > 0 { 
+            self.sound_timer -= 1; 
+        }
+    }
 
     pub fn new() -> Result<Self, String> {
         let mut cpu = Chip8CPU { 
@@ -247,10 +247,11 @@ impl Chip8CPU {
         for key in 0..16 {
             if (self.keys & (1 << key)) != 0 {
                 self.v[x] = key as u8;
-                return PcOpertion::JUMP(self.pc);
+                return PcOpertion::NEXT;
             }
         }
-        PcOpertion::NEXT
+
+        PcOpertion::JUMP(self.pc)
     }
     fn ld_f(&mut self, x: usize) -> PcOpertion {
         self.i = (self.v[x] as u16) * 5;
