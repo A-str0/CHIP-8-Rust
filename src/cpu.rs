@@ -28,16 +28,16 @@ enum PcOpertion {
 impl Chip8CPU {
     pub fn get_display(&self) -> &[u8; (DISPLAY_HEIGHT * DISPLAY_WIDTH) / 8] { &self.display }
 
-    pub fn decrease_delay_timer(&mut self) {
-        if self.delay_timer > 0 { 
-            self.delay_timer -= 1; 
-        }
-    }
-    pub fn decrease_sound_timer(&mut self) {
-        if self.sound_timer > 0 { 
-            self.sound_timer -= 1; 
-        }
-    }
+    // pub fn decrease_delay_timer(&mut self) {
+    //     if self.delay_timer > 0 { 
+    //         self.delay_timer -= 1; 
+    //     }
+    // }
+    // pub fn decrease_sound_timer(&mut self) {
+    //     if self.sound_timer > 0 { 
+    //         self.sound_timer -= 1; 
+    //     }
+    // }
 
     pub fn new() -> Result<Self, String> {
         let mut cpu = Chip8CPU { 
@@ -60,7 +60,7 @@ impl Chip8CPU {
         self.display.fill(0);
         self.v.fill(0);
         self.i = 0;
-        self.pc = 0;
+        self.pc = 0x200;
         self.sp = 0;
         self.delay_timer = 0;
         self.sound_timer = 0;
@@ -93,11 +93,6 @@ impl Chip8CPU {
 
     pub fn tick(&mut self) {
         let opcode = self.fetch_oppcode();
-
-        #[cfg(debug_assertions)]
-        {
-            println!("OPCODE: {:04X} (PC: {})", opcode, self.pc);
-        }
 
         self.execute(opcode).expect("error lol");
     }
