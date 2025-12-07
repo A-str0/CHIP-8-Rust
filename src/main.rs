@@ -12,11 +12,13 @@ const FRAME_DURATION: Duration = Duration::from_micros(1_000_000 / TARGET_FPS);
 const TARGET_FPS: u64 = 60;
 
 fn main() -> Result<(), String> {
+    let args: Vec<String> = std::env::args().collect();
+
     let mut cpu = cpu::Chip8CPU::new()?;
     let mut beeper = Chip8Sound::new();
 
     cpu.reset()?;
-    cpu.load_rom("Brick.ch8")?;
+    cpu.load_rom(args[1].as_str())?;
 
     let mut renderer = renderer::Renderer::new();
     let mut terminal = init();

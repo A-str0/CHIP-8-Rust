@@ -1,5 +1,5 @@
 use ratatui::{prelude::*, widgets::{Block, Borders, Paragraph} };
-use crate::{cpu::{Chip8CPU, DISPLAY_HEIGHT, DISPLAY_WIDTH}, sound::Chip8Sound};
+use crate::{cpu::{Chip8CPU, DISPLAY_HEIGHT, DISPLAY_WIDTH}};
 use crate::input::InputHandler;
 
 pub struct Renderer {
