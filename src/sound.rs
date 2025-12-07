@@ -45,7 +45,6 @@ impl Chip8Sound {
         let sink = self.sink.lock().unwrap();
 
         let source = SawtoothWave::new(520.0)
-            .take_duration(Duration::from_secs_f32(0.1))
             .amplify(0.20);
 
         sink.append(source);
