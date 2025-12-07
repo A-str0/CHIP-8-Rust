@@ -1,4 +1,5 @@
 mod cpu;
+mod input;
 mod renderer;
 
 fn main() -> Result<(), String> {
