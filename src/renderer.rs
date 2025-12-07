@@ -1,21 +1,22 @@
 use ratatui::{init, prelude::*, restore, widgets::{Block, Borders, Paragraph} };
-use crate::cpu::{Chip8CPU, DISPLAY_HEIGHT, DISPLAY_WIDTH};
+use crate::{cpu::{Chip8CPU, DISPLAY_HEIGHT, DISPLAY_WIDTH}, sound::Chip8Sound};
 use crate::input::InputHandler;
 use std::time::{Duration, Instant};
 
 const CYCLES_PER_FRAME: u8 = 10;
-const TARGET_FPS: u64 = 60;
 const FRAME_DURATION: Duration = Duration::from_micros(1_000_000 / TARGET_FPS);
+const TARGET_FPS: u64 = 60;
 
 pub struct Renderer {
     cpu: Chip8CPU,
+    input: InputHandler,
+    beeper: Chip8Sound,
     quit: bool,
-    input_handler: InputHandler,
 }
 
 impl Renderer {
-    pub fn new(cpu: Chip8CPU) -> Self {
-        Self { cpu, quit: false, input_handler: InputHandler::new() }
+    pub fn new(cpu: Chip8CPU, beeper: Chip8Sound) -> Self {
+        Self { cpu, input: InputHandler::new(), beeper: beeper, quit: false }
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -34,6 +35,7 @@ impl Renderer {
 
             for _ in 0..CYCLES_PER_FRAME {
                 self.cpu.tick();
+                self.beeper.update(self.cpu.sound_timer);
             }
 
             if last_timer_update.elapsed() >= Duration::from_micros(16667) {
@@ -43,7 +45,7 @@ impl Renderer {
             }
 
             terminal.draw(|frame| self.draw(frame))?;
-            if self.input_handler.update_keys(&mut self.cpu.keys)? {
+            if self.input.update_keys(&mut self.cpu.keys)? {
                 self.quit = true;
             }
 
@@ -77,8 +79,8 @@ impl Renderer {
                 .title(" CHIP-8//Rust ")
                 .title_bottom(format!(" ESC/DEL/Ctrl+C=exit | {} ", keys_status))
                 .borders(Borders::ALL))
-            .fg(Color::Green)
-            .bg(Color::Black);
+                .fg(Color::Green)
+                .bg(Color::Black);
 
         frame.render_widget(paragraph, frame.area());
     }
