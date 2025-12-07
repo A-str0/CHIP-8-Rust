@@ -41,11 +41,11 @@ impl Chip8Sound {
         }
     }
 
-    fn start_beep(&self) {
+    pub fn start_beep(&self) {
         let sink = self.sink.lock().unwrap();
 
         let source = SawtoothWave::new(520.0)
-            .take_duration(Duration::from_secs_f32(0.01))
+            .take_duration(Duration::from_secs_f32(0.1))
             .amplify(0.20);
 
         sink.append(source);

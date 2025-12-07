@@ -77,7 +77,7 @@ impl Renderer {
         let paragraph = Paragraph::new(lines)
             .block(Block::default()
                 .title(" CHIP-8//Rust ")
-                .title_bottom(format!(" ESC/DEL/Ctrl+C=exit | {} ", keys_status))
+                .title_bottom(format!(" press ESC/DEL to exit | {} ", keys_status))
                 .borders(Borders::ALL))
                 .fg(Color::Green)
                 .bg(Color::Black);
