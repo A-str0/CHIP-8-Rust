@@ -2,7 +2,6 @@ use rodio::Source;
 use rodio::source::SawtoothWave;
 use rodio::{OutputStreamBuilder, Sink};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 pub struct Chip8Sound {
     sink: Arc<Mutex<Sink>>,
