@@ -11,18 +11,28 @@ This project was created for educational purposes and as a personal challenge: t
 
 ## 🚀 Quick Start
 
+### Usage
+
+```bash
+chip-8-rust <ROM>.ch8
+```
+
 ### Installation and Run
+
+Install release from https://github.com/A-str0/CHIP-8-Rust/releases/tag/v1.0
+
+#### *OR*
 
 ```bash
 # Clone the repository and switch to dev branch
 git clone https://github.com/A-str0/CHIP-8-Rust.git
 cd CHIP-8-Rust
 
-# Build and run (in release mode for performance)
-cargo run --release
+# Build
+cargo build --release
 
-# Or in debug mode
-cargo run
+# Run 
+./target/release/chip-8-rust <ROM>.ch8
 ```
 
 ## 🎮 Controls
