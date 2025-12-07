@@ -15,7 +15,7 @@ pub struct Chip8CPU {
     pc: u16,                        // program counter
     sp: u8,                         // stack pointer
     delay_timer: u8,
-    sound_timer: u8,
+    pub(crate) sound_timer: u8,
     pub keys: u16,                  // all keys
 }
 
